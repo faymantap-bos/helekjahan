@@ -1,277 +1,88 @@
-import crypto from 'node:crypto';
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unduh konten publik dari TikTok, Instagram, Facebook, dan YouTube dalam satu tempat.">
+  <title>AllFetch — All in One Downloader</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
 
-const API_BASE = 'https://api.vidssave.com';
-const API_PATH = '/api/contentsite_api';
-const SSE_PATH = '/sse/contentsite_api';
-const AUTH_KEY = '4c9b7d21';
-const DOMAIN = 'api-ak.vidssave.com';
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="AllFetch beranda">
+      <span class="brand-mark" aria-hidden="true">↓</span>
+      <span>AllFetch</span>
+    </a>
+    <a class="nav-link" href="#cara-kerja">Cara kerja</a>
+  </header>
 
-const RAW_KEY = '4c9b7d2e'.repeat(3).concat('4c9b7d21');
-const KEY = Buffer.from(RAW_KEY, 'utf8');
-const IV = Buffer.from(RAW_KEY.slice(0, 16), 'utf8');
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span></span> SATU TAUTAN, SEMUA PLATFORM</div>
+      <h1>Ambil videonya.<br><em>Tanpa ribet.</em></h1>
+      <p class="hero-copy">Tempel tautan publik dari platform favoritmu, pilih kualitas, lalu unduh.</p>
 
-const SUPPORTED_HOSTS = new Map([
-  ['youtube.com', 'YouTube'],
-  ['youtu.be', 'YouTube'],
-  ['tiktok.com', 'TikTok'],
-  ['instagram.com', 'Instagram'],
-  ['facebook.com', 'Facebook'],
-  ['fb.watch', 'Facebook']
-]);
+      <div class="platforms" aria-label="Platform yang didukung">
+        <span class="platform"><b>TT</b> TikTok</span>
+        <span class="platform"><b>IG</b> Instagram</span>
+        <span class="platform"><b>FB</b> Facebook</span>
+        <span class="platform"><b>YT</b> YouTube</span>
+      </div>
 
-function matchesHost(hostname, domain) {
-  return hostname === domain || hostname.endsWith(`.${domain}`);
-}
+      <form class="download-form" id="downloadForm">
+        <label class="sr-only" for="videoUrl">Tautan video</label>
+        <div class="input-wrap">
+          <span class="link-icon" aria-hidden="true">↗</span>
+          <input id="videoUrl" name="url" type="url" inputmode="url" autocomplete="url" placeholder="Tempel tautan video di sini..." required>
+          <button class="paste-button" id="pasteButton" type="button">Tempel</button>
+        </div>
+        <button class="submit-button" id="submitButton" type="submit">
+          <span>Analisis tautan</span><span aria-hidden="true">→</span>
+        </button>
+      </form>
+      <p class="form-note">Gunakan hanya untuk konten milikmu atau konten yang telah diizinkan pemiliknya.</p>
+    </section>
 
-export function getPlatform(videoUrl) {
-  let parsed;
-  try {
-    parsed = new URL(videoUrl);
-  } catch {
-    throw new Error('URL tidak valid');
-  }
+    <section class="result-section" id="resultSection" aria-live="polite" hidden>
+      <div class="status-card" id="statusCard">
+        <span class="spinner" aria-hidden="true"></span>
+        <div><strong id="statusTitle">Menganalisis tautan</strong><p id="statusText">Sedang mencari format yang tersedia...</p></div>
+      </div>
 
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new Error('URL harus menggunakan http atau https');
-  }
+      <article class="media-card" id="mediaCard" hidden>
+        <div class="thumbnail-wrap">
+          <img id="thumbnail" alt="Thumbnail media">
+          <span class="source-badge" id="sourceBadge"></span>
+        </div>
+        <div class="media-content">
+          <p class="mini-label">SIAP DIUNDUH</p>
+          <h2 id="mediaTitle"></h2>
+          <p class="media-meta" id="mediaMeta"></p>
+          <div class="filter-row" id="filterRow">
+            <button class="filter active" data-filter="all" type="button">Semua</button>
+            <button class="filter" data-filter="video" type="button">Video</button>
+            <button class="filter" data-filter="audio" type="button">Audio</button>
+          </div>
+          <div class="resource-list" id="resourceList"></div>
+        </div>
+      </article>
+    </section>
 
-  const hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
-  for (const [domain, platform] of SUPPORTED_HOSTS) {
-    if (matchesHost(hostname, domain)) return platform;
-  }
+    <section class="how" id="cara-kerja">
+      <div class="section-heading"><p class="mini-label">CARA KERJA</p><h2>Tiga langkah. Selesai.</h2></div>
+      <div class="steps">
+        <article><span>01</span><h3>Salin tautan</h3><p>Buka postingan publik lalu salin tautannya.</p></article>
+        <article><span>02</span><h3>Pilih format</h3><p>Kami menampilkan video dan audio yang tersedia.</p></article>
+        <article><span>03</span><h3>Unduh</h3><p>Pilih kualitas dan simpan ke perangkatmu.</p></article>
+      </div>
+    </section>
+  </main>
 
-  throw new Error('Platform belum didukung. Gunakan URL TikTok, Instagram, Facebook, atau YouTube.');
-}
-
-async function fetchWithTimeout(url, options = {}, timeout = 30_000) {
-  const signal = options.signal || AbortSignal.timeout(timeout);
-  try {
-    return await fetch(url, { ...options, signal });
-  } catch (error) {
-    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
-      throw new Error('Layanan extractor terlalu lama merespons. Silakan coba lagi.');
-    }
-    throw error;
-  }
-}
-
-function decryptPayload(base64Ciphertext) {
-  const ciphertext = Buffer.from(base64Ciphertext, 'base64');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', KEY, IV);
-  decipher.setAutoPadding(false);
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  let end = decrypted.length;
-  while (end > 0 && decrypted[end - 1] === 0) end--;
-  return JSON.parse(decrypted.slice(0, end).toString('utf8'));
-}
-
-export async function parse(videoUrl) {
-  if (!videoUrl || typeof videoUrl !== 'string') {
-    throw new Error('URL video wajib diisi');
-  }
-
-  const platform = getPlatform(videoUrl);
-
-  const params = new URLSearchParams({
-    hostname: 'vidssave.com',
-    auth: AUTH_KEY,
-    domain: DOMAIN,
-    origin: 'source',
-    link: videoUrl
-  });
-
-  const res = await fetchWithTimeout(`${API_BASE}${API_PATH}/media/parse`, {
-    method: 'POST',
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Origin': 'https://vidssave.com',
-      'Referer': 'https://vidssave.com/',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: params.toString()
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Vidssave parse failed (${res.status}): ${errorText}`);
-  }
-
-  const json = await res.json();
-  if (json.status !== 1 || !json.data) {
-    throw new Error(`Vidssave parse error: ${json.msg || 'Unable to parse URL'}`);
-  }
-
-  const data = typeof json.data === 'string' ? decryptPayload(json.data) : json.data;
-
-  return {
-    status: true,
-    platform,
-    id: data.id || null,
-    title: data.title || '',
-    thumbnail: data.thumbnail || '',
-    duration: data.duration || 0,
-    resources: Array.isArray(data.resources) ? data.resources.map(r => ({
-      resource_id: r.resource_id,
-      quality: r.quality || 'Auto',
-      format: r.format || '',
-      type: r.type || 'video',
-      size: r.size,
-      resource_content: r.resource_content
-    })).filter(r => typeof r.resource_content === 'string' && r.resource_content.length > 0) : []
-  };
-}
-
-export async function resolveDownloadUrl(resourceContent, options = {}) {
-  if (!resourceContent || typeof resourceContent !== 'string') {
-    throw new Error('Valid resource_content is required');
-  }
-
-  const dlParams = new URLSearchParams({
-    hostname: 'vidssave.com',
-    auth: AUTH_KEY,
-    domain: DOMAIN,
-    request: resourceContent,
-    no_encrypt: '1'
-  });
-
-  if (options.outputFormat) {
-    dlParams.append('output', options.outputFormat);
-  }
-
-  const dlRes = await fetchWithTimeout(`${API_BASE}${API_PATH}/media/download`, {
-    method: 'POST',
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Origin': 'https://vidssave.com',
-      'Referer': 'https://vidssave.com/',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: dlParams.toString()
-  });
-
-  if (!dlRes.ok) {
-    const errorText = await dlRes.text();
-    throw new Error(`Vidssave media/download request failed (${dlRes.status}): ${errorText}`);
-  }
-
-  const dlJson = await dlRes.json();
-  if (dlJson.status !== 1 || !dlJson.data) {
-    throw new Error(`Vidssave download task failed: ${dlJson.msg || 'Unknown error'}`);
-  }
-
-  const dlData = typeof dlJson.data === 'string' ? decryptPayload(dlJson.data) : dlJson.data;
-  const taskId = dlData.task_id;
-  if (!taskId) {
-    throw new Error('No task_id received from Vidssave download task');
-  }
-
-  const sseUrl = `${API_BASE}${SSE_PATH}/media/download_query?auth=20250901majwlqo&domain=${DOMAIN}&task_id=${encodeURIComponent(taskId)}&download_domain=vidssave.com&origin=content_site`;
-
-  const sseRes = await fetchWithTimeout(sseUrl, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Accept': 'text/event-stream',
-      'Referer': 'https://vidssave.com/'
-    }
-  });
-
-  if (!sseRes.ok) {
-    throw new Error(`Vidssave SSE query failed (${sseRes.status})`);
-  }
-
-  const reader = sseRes.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let redirectUrl = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const events = buffer.split(/\r?\n\r?\n/);
-    buffer = events.pop() || '';
-    for (const event of events) {
-      const dataLines = event
-        .split(/\r?\n/)
-        .filter(line => line.startsWith('data:'))
-        .map(line => line.slice(5).trim());
-      if (dataLines.length === 0) continue;
-      try {
-        const sseData = JSON.parse(dataLines.join('\n'));
-        if (sseData.download_link) {
-          redirectUrl = sseData.download_link;
-          break;
-        }
-      } catch {}
-    }
-    if (redirectUrl) break;
-  }
-
-  if (!redirectUrl) {
-    throw new Error('Vidssave SSE stream completed without a valid download_link');
-  }
-
-  const headRes = await fetchWithTimeout(redirectUrl, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Referer': 'https://vidssave.com/'
-    },
-    redirect: 'manual'
-  });
-
-  const location = headRes.headers.get('location');
-  return {
-    download_link: redirectUrl,
-    direct_url: location || redirectUrl
-  };
-}
-
-export async function download(videoUrl, options = {}) {
-  const parsed = await parse(videoUrl);
-  if (!parsed.resources || parsed.resources.length === 0) {
-    throw new Error('No downloadable resources found for this video');
-  }
-
-  let selected = null;
-  if (options.quality) {
-    const targetQ = String(options.quality).toLowerCase().replace('p', '');
-    selected = parsed.resources.find(r => String(r.quality).toLowerCase().replace('p', '') === targetQ);
-  }
-
-  if (!selected && options.type) {
-    selected = parsed.resources.find(r => String(r.type).toLowerCase() === options.type.toLowerCase());
-  }
-
-  if (!selected) {
-    const videos = parsed.resources.filter(r => r.type === 'video');
-    selected = videos.length > 0 ? videos[videos.length - 1] : parsed.resources[0];
-  }
-
-  const resolved = await resolveDownloadUrl(selected.resource_content, options);
-
-  return {
-    status: true,
-    platform: parsed.platform,
-    id: parsed.id,
-    title: parsed.title,
-    thumbnail: parsed.thumbnail,
-    duration: parsed.duration,
-    selected: {
-      quality: selected.quality,
-      format: selected.format,
-      type: selected.type,
-      size: selected.size,
-      download_link: resolved.download_link,
-      direct_url: resolved.direct_url
-    },
-    resources: parsed.resources
-  };
-}
-
-export default {
-  parse,
-  resolveDownloadUrl,
-  download
-};
+  <footer><span>AllFetch</span><p>Konten tetap menjadi hak pemilik masing-masing.</p></footer>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
