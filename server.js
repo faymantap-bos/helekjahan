@@ -35,7 +35,16 @@ function friendlyError(error) {
   if (/fetch failed|ENOTFOUND|ECONN/i.test(message)) {
     return 'Layanan extractor sedang tidak dapat dihubungi. Coba beberapa saat lagi.';
   }
-  return message;
+  if (/vidssave parse (?:error|failed)/i.test(message)) {
+    return 'Tautan tidak dapat dianalisis. Pastikan konten bersifat publik lalu coba kembali.';
+  }
+  if (/vidssave (?:media\/download request|download task) failed/i.test(message)) {
+    return 'Link unduhan gagal disiapkan. Silakan coba kembali.';
+  }
+  if (/vidssave SSE (?:query failed|stream completed)/i.test(message)) {
+    return 'Link unduhan belum tersedia. Silakan tekan unduh kembali.';
+  }
+  return message.replace(/vidssave/gi, 'Layanan extractor');
 }
 
 function rateLimited(ip) {
