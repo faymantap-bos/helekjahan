@@ -56,6 +56,51 @@ function rateLimited(ip) {
   return false;
 }
 
+function normalizeInputUrl(value) {
+  if (typeof value !== 'string') return value;
+  const input = value.trim();
+
+  try {
+    const parsed = new URL(input);
+    const hostname = parsed.hostname.toLowerCase().replace(/^(www\.|m\.)/, '');
+    let videoId = null;
+
+    if (hostname === 'youtu.be') {
+      videoId = parsed.pathname.split('/').filter(Boolean)[0] || null;
+    } else if (hostname === 'youtube.com' || hostname.endsWith('.youtube.com')) {
+      videoId = parsed.searchParams.get('v');
+      if (!videoId) {
+        videoId = parsed.pathname.match(/^\/(?:shorts|embed|live)\/([^/?]+)/)?.[1] || null;
+      }
+    }
+
+    return videoId
+      ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
+      : input;
+  } catch {
+    return input;
+  }
+}
+
+async function parseWithRetry(videoUrl) {
+  const normalizedUrl = normalizeInputUrl(videoUrl);
+  let lastError;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await parse(normalizedUrl);
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = /vidssave parse|analy[sz]e failed|fetch failed|ENOTFOUND|ECONN/i.test(message);
+      if (!retryable || attempt === 2) throw error;
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+  }
+
+  throw lastError;
+}
+
 async function readJson(req) {
   let body = '';
   for await (const chunk of req) {
@@ -93,7 +138,7 @@ function readToken(token) {
 
 async function analyze(req, res) {
   const { url } = await readJson(req);
-  const result = await parse(url);
+  const result = await parseWithRetry(url);
   json(res, 200, {
     ...result,
     resources: result.resources.map(({ resource_content, ...resource }) => ({
