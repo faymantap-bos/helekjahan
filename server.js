@@ -15,6 +15,7 @@ const MAX_BODY = 16 * 1024;
 const staticFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+  ['/favicon.svg', ['favicon.svg', 'image/svg+xml; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']]
 ]);
@@ -228,7 +229,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   try {
     if (req.method === 'GET' && url.pathname === '/api/health') {
-      return json(res, 200, { status: true, service: 'AllFetch' });
+      return json(res, 200, { status: true, service: 'NoxxyDown' });
     }
 
     if (url.pathname.startsWith('/api/')) {
@@ -248,5 +249,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`AllFetch siap di http://${HOST}:${PORT}`);
+  console.log(`NoxxyDown siap di http://${HOST}:${PORT}`);
 });
