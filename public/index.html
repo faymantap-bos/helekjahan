@@ -2,9 +2,10 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fff8e8">
   <meta name="description" content="Unduh konten publik dari TikTok, Instagram, Facebook, dan YouTube dalam satu tempat.">
-  <title>AllFetch — All in One Downloader</title>
+  <title>NoxxyDown — All in One Downloader</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -12,9 +13,9 @@
   <div class="ambient ambient-two"></div>
 
   <header class="topbar">
-    <a class="brand" href="/" aria-label="AllFetch beranda">
+    <a class="brand" href="/" aria-label="NoxxyDown beranda">
       <span class="brand-mark" aria-hidden="true">↓</span>
-      <span>AllFetch</span>
+      <span>NoxxyDown</span>
     </a>
     <a class="nav-link" href="#cara-kerja">Cara kerja</a>
   </header>
@@ -26,10 +27,22 @@
       <p class="hero-copy">Tempel tautan publik dari platform favoritmu, pilih kualitas, lalu unduh.</p>
 
       <div class="platforms" aria-label="Platform yang didukung">
-        <span class="platform"><b>TT</b> TikTok</span>
-        <span class="platform"><b>IG</b> Instagram</span>
-        <span class="platform"><b>FB</b> Facebook</span>
-        <span class="platform"><b>YT</b> YouTube</span>
+        <span class="platform">
+          <b aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M14 3v10.2a4.4 4.4 0 1 1-3.5-4.3v3.4a1.4 1.4 0 1 0 .5 1.1V3h3Zm0 0c.5 2.8 2.2 4.5 5 5v3.2c-2-.1-3.6-.8-5-2"/></svg></b>
+          TikTok
+        </span>
+        <span class="platform">
+          <b aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle class="icon-dot" cx="17.4" cy="6.7" r="1"/></svg></b>
+          Instagram
+        </span>
+        <span class="platform">
+          <b aria-hidden="true"><svg class="icon-fill" viewBox="0 0 24 24" focusable="false"><path d="M14 8h3V4h-3c-3.2 0-5 1.9-5 5v3H6v4h3v7h4v-7h3l1-4h-4V9c0-.7.3-1 1-1Z"/></svg></b>
+          Facebook
+        </span>
+        <span class="platform">
+          <b aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="2.5" y="5.5" width="19" height="13" rx="3.5"/><path class="icon-fill" d="m10 9 6 3-6 3Z"/></svg></b>
+          YouTube
+        </span>
       </div>
 
       <form class="download-form" id="downloadForm">
@@ -81,7 +94,7 @@
     </section>
   </main>
 
-  <footer><span>AllFetch</span><p>Konten tetap menjadi hak pemilik masing-masing.</p></footer>
+  <footer><span>NoxxyDown</span><p>Konten tetap menjadi hak pemilik masing-masing.</p></footer>
   <div class="toast" id="toast" role="status" hidden></div>
   <script type="module" src="/app.js"></script>
 </body>
