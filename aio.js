@@ -1,222 +1,246 @@
+import vm from 'node:vm';
 import crypto from 'node:crypto';
 
-const API_BASE = 'https://api.vidssave.com';
-const API_PATH = '/api/contentsite_api';
-const SSE_PATH = '/sse/contentsite_api';
-const AUTH_KEY = '4c9b7d21';
-const DOMAIN = 'api-ak.vidssave.com';
+const PAGE_URL = 'https://savefrom.co.id/';
+const BASE_ORIGIN = 'https://savefrom.co.id';
+const WORKER_HUB_API = 'https://api-wh.savefrom.co.id';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 
-const RAW_KEY = '4c9b7d2e'.repeat(3).concat('4c9b7d21');
-const KEY = Buffer.from(RAW_KEY, 'utf8');
-const IV = Buffer.from(RAW_KEY.slice(0, 16), 'utf8');
+let cachedSignFn = null;
 
-function decryptPayload(base64Ciphertext) {
-  const ciphertext = Buffer.from(base64Ciphertext, 'base64');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', KEY, IV);
-  decipher.setAutoPadding(false);
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  let end = decrypted.length;
-  while (end > 0 && decrypted[end - 1] === 0) end--;
-  return JSON.parse(decrypted.slice(0, end).toString('utf8'));
+function createSandboxContext(chunkCode) {
+  function customFetch(url, options = {}) {
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({}),
+      text: async () => ''
+    });
+  }
+
+  const fakeDocument = {
+    nodeType: 9,
+    cookie: '',
+    location: { hostname: 'savefrom.co.id', href: PAGE_URL },
+    documentElement: {
+      nodeType: 1,
+      outerHTML: '<html><head></head><body></body></html>'
+    },
+    head: { nodeType: 1 },
+    body: { nodeType: 1 },
+    referrer: '',
+    title: 'SaveFrom Downloader',
+    readyState: 'complete',
+    compatMode: 'CSS1Compat',
+    contentType: 'text/html',
+    characterSet: 'UTF-8',
+    doctype: { name: 'html' },
+    hidden: false,
+    visibilityState: 'visible',
+    scripts: [],
+    plugins: [],
+    getElementById: () => null,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    createElement: (tag) => ({ tagName: tag.toUpperCase() }),
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  };
+
+  const fakeNavigator = {
+    userAgent: USER_AGENT,
+    appVersion: USER_AGENT.replace('Mozilla/', ''),
+    platform: 'Win32',
+    vendor: 'Google Inc.',
+    language: 'en-US',
+    languages: ['en-US', 'en'],
+    hardwareConcurrency: 8,
+    deviceMemory: 8,
+    maxTouchPoints: 0,
+    cookieEnabled: true,
+    onLine: true,
+    webdriver: false,
+    crypto: crypto.webcrypto
+  };
+
+  const fakeScreen = {
+    width: 1920,
+    height: 1080,
+    availWidth: 1920,
+    availHeight: 1040,
+    colorDepth: 24,
+    pixelDepth: 24
+  };
+
+  const context = {
+    self: {},
+    window: {},
+    globalThis: {},
+    document: fakeDocument,
+    location: fakeDocument.location,
+    navigator: fakeNavigator,
+    screen: fakeScreen,
+    crypto: crypto.webcrypto,
+    fetch: customFetch,
+    atob,
+    btoa,
+    TextDecoder,
+    TextEncoder,
+    AbortController,
+    Uint8Array,
+    Array,
+    String,
+    Number,
+    RegExp,
+    Set,
+    Error,
+    TypeError,
+    Promise,
+    isNaN,
+    parseInt,
+    setTimeout: (fn, ms) => setTimeout(fn, ms).unref(),
+    clearTimeout,
+    setInterval: (fn, ms) => setInterval(fn, ms).unref(),
+    clearInterval,
+    Date,
+    Math,
+    JSON,
+    console
+  };
+
+  context.window = context;
+  context.self = context;
+  context.globalThis = context;
+  context.top = context;
+  context.window.top = context;
+  context.window.crypto = crypto.webcrypto;
+  context.window.screen = fakeScreen;
+  context.self.webpackChunk = [];
+
+  vm.createContext(context);
+  vm.runInContext(chunkCode, context);
+
+  if (!context.self.webpackChunk || !context.self.webpackChunk.length) {
+    throw new Error('Webpack chunk initialization failed in sandbox');
+  }
+
+  const chunkInfo = context.self.webpackChunk[0];
+  const moduleMap = chunkInfo[1];
+
+  const installedModules = {};
+  function webpackRequire(moduleId) {
+    if (installedModules[moduleId]) return installedModules[moduleId].exports;
+    const module = { exports: {} };
+    installedModules[moduleId] = module;
+    if (moduleMap[moduleId]) {
+      moduleMap[moduleId](module, module.exports, webpackRequire);
+    }
+    return module.exports;
+  }
+
+  webpackRequire.d = (exports, definition) => {
+    for (const key in definition) {
+      if (Object.prototype.hasOwnProperty.call(definition, key) && !Object.prototype.hasOwnProperty.call(exports, key)) {
+        Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+      }
+    }
+  };
+
+  webpackRequire.r = (exports) => {
+    if (typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+      Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+    }
+    Object.defineProperty(exports, '__esModule', { value: true });
+  };
+
+  const targetModuleId = '27';
+  if (!moduleMap[targetModuleId]) {
+    throw new Error(`Target signing module ${targetModuleId} not found in chunk`);
+  }
+
+  const exported = webpackRequire(targetModuleId);
+  return exported.default;
 }
 
-export async function parse(videoUrl) {
+export async function getChunkUrl() {
+  try {
+    const pageRes = await fetch(PAGE_URL, { headers: { 'User-Agent': USER_AGENT } });
+    if (!pageRes.ok) throw new Error(`HTTP ${pageRes.status}`);
+    const html = await pageRes.text();
+    const appMatch = html.match(/src="([^"]*\/js\/app\.js[^"]*)"/);
+    if (!appMatch) throw new Error('app.js script tag not found');
+
+    const appUrl = appMatch[1].startsWith('http') ? appMatch[1] : `${BASE_ORIGIN}${appMatch[1]}`;
+    const appRes = await fetch(appUrl, { headers: { 'User-Agent': USER_AGENT } });
+    if (!appRes.ok) throw new Error(`HTTP ${appRes.status}`);
+    const appCode = await appRes.text();
+
+    const chunkHashMatch = appCode.match(/54:\s*"([a-f0-9]+)"/);
+    if (chunkHashMatch) {
+      return `${BASE_ORIGIN}/js/link.chunk.js?ch=${chunkHashMatch[1]}.js`;
+    }
+  } catch {}
+
+  return `${BASE_ORIGIN}/js/link.chunk.js?ch=9810f389dc810f8d.js`;
+}
+
+export async function getSignFunction() {
+  if (cachedSignFn) return cachedSignFn;
+
+  const chunkUrl = await getChunkUrl();
+  const chunkRes = await fetch(chunkUrl, { headers: { 'User-Agent': USER_AGENT } });
+  if (!chunkRes.ok) {
+    throw new Error(`Failed to fetch SaveFrom chunk (${chunkRes.status})`);
+  }
+
+  const chunkCode = await chunkRes.text();
+  cachedSignFn = await createSandboxContext(chunkCode);
+  return cachedSignFn;
+}
+
+export async function download(videoUrl) {
   if (!videoUrl || typeof videoUrl !== 'string') {
     throw new Error('Valid video URL is required');
   }
 
-  const params = new URLSearchParams({
-    hostname: 'vidssave.com',
-    auth: AUTH_KEY,
-    domain: DOMAIN,
-    origin: 'source',
-    link: videoUrl
-  });
+  const sign = await getSignFunction();
+  const signedPayload = await sign(videoUrl);
 
-  const res = await fetch(`${API_BASE}${API_PATH}/media/parse`, {
+  const res = await fetch(`${WORKER_HUB_API}/api/convert`, {
     method: 'POST',
     headers: {
       'User-Agent': USER_AGENT,
-      'Origin': 'https://vidssave.com',
-      'Referer': 'https://vidssave.com/',
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Origin': BASE_ORIGIN,
+      'Referer': PAGE_URL,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json, text/plain, */*'
     },
-    body: params.toString()
+    body: new URLSearchParams(signedPayload)
   });
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Vidssave parse failed (${res.status}): ${errorText}`);
+    throw new Error(`SaveFrom worker hub error (${res.status}): ${errorText}`);
   }
 
-  const json = await res.json();
-  if (json.status !== 1 || !json.data) {
-    throw new Error(`Vidssave parse error: ${json.msg || 'Unable to parse URL'}`);
+  const data = await res.json();
+  if (data.info === -1) {
+    throw new Error('SaveFrom returned invalid request or unsupported URL');
   }
-
-  const data = typeof json.data === 'string' ? decryptPayload(json.data) : json.data;
 
   return {
     status: true,
     id: data.id || null,
-    title: data.title || '',
-    thumbnail: data.thumbnail || '',
-    duration: data.duration || 0,
-    resources: Array.isArray(data.resources) ? data.resources.map(r => ({
-      resource_id: r.resource_id,
-      quality: r.quality,
-      format: r.format,
-      type: r.type,
-      size: r.size,
-      resource_content: r.resource_content
-    })) : []
-  };
-}
-
-export async function resolveDownloadUrl(resourceContent, options = {}) {
-  if (!resourceContent || typeof resourceContent !== 'string') {
-    throw new Error('Valid resource_content is required');
-  }
-
-  const dlParams = new URLSearchParams({
-    hostname: 'vidssave.com',
-    auth: AUTH_KEY,
-    domain: DOMAIN,
-    request: resourceContent,
-    no_encrypt: '1'
-  });
-
-  if (options.outputFormat) {
-    dlParams.append('output', options.outputFormat);
-  }
-
-  const dlRes = await fetch(`${API_BASE}${API_PATH}/media/download`, {
-    method: 'POST',
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Origin': 'https://vidssave.com',
-      'Referer': 'https://vidssave.com/',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: dlParams.toString()
-  });
-
-  if (!dlRes.ok) {
-    const errorText = await dlRes.text();
-    throw new Error(`Vidssave media/download request failed (${dlRes.status}): ${errorText}`);
-  }
-
-  const dlJson = await dlRes.json();
-  if (dlJson.status !== 1 || !dlJson.data) {
-    throw new Error(`Vidssave download task failed: ${dlJson.msg || 'Unknown error'}`);
-  }
-
-  const dlData = typeof dlJson.data === 'string' ? decryptPayload(dlJson.data) : dlJson.data;
-  const taskId = dlData.task_id;
-  if (!taskId) {
-    throw new Error('No task_id received from Vidssave download task');
-  }
-
-  const sseUrl = `${API_BASE}${SSE_PATH}/media/download_query?auth=20250901majwlqo&domain=${DOMAIN}&task_id=${encodeURIComponent(taskId)}&download_domain=vidssave.com&origin=content_site`;
-
-  const sseRes = await fetch(sseUrl, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Accept': 'text/event-stream',
-      'Referer': 'https://vidssave.com/'
-    }
-  });
-
-  if (!sseRes.ok) {
-    throw new Error(`Vidssave SSE query failed (${sseRes.status})`);
-  }
-
-  const reader = sseRes.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let redirectUrl = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const dataIndex = buffer.indexOf('data:');
-    if (dataIndex !== -1) {
-      const jsonStr = buffer.slice(dataIndex + 5).trim();
-      try {
-        const sseData = JSON.parse(jsonStr);
-        if (sseData.download_link) {
-          redirectUrl = sseData.download_link;
-          break;
-        }
-      } catch {}
-    }
-  }
-
-  if (!redirectUrl) {
-    throw new Error('Vidssave SSE stream completed without a valid download_link');
-  }
-
-  const headRes = await fetch(redirectUrl, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Referer': 'https://vidssave.com/'
-    },
-    redirect: 'manual'
-  });
-
-  const location = headRes.headers.get('location');
-  return {
-    download_link: redirectUrl,
-    direct_url: location || redirectUrl
-  };
-}
-
-export async function download(videoUrl, options = {}) {
-  const parsed = await parse(videoUrl);
-  if (!parsed.resources || parsed.resources.length === 0) {
-    throw new Error('No downloadable resources found for this video');
-  }
-
-  let selected = null;
-  if (options.quality) {
-    const targetQ = String(options.quality).toLowerCase().replace('p', '');
-    selected = parsed.resources.find(r => r.quality.toLowerCase().replace('p', '') === targetQ);
-  }
-
-  if (!selected && options.type) {
-    selected = parsed.resources.find(r => r.type.toLowerCase() === options.type.toLowerCase());
-  }
-
-  if (!selected) {
-    const videos = parsed.resources.filter(r => r.type === 'video');
-    selected = videos.length > 0 ? videos[videos.length - 1] : parsed.resources[0];
-  }
-
-  const resolved = await resolveDownloadUrl(selected.resource_content, options);
-
-  return {
-    status: true,
-    id: parsed.id,
-    title: parsed.title,
-    thumbnail: parsed.thumbnail,
-    duration: parsed.duration,
-    selected: {
-      quality: selected.quality,
-      format: selected.format,
-      type: selected.type,
-      size: selected.size,
-      download_link: resolved.download_link,
-      direct_url: resolved.direct_url
-    },
-    resources: parsed.resources
+    meta: data.meta || {},
+    thumb: data.thumb || null,
+    url: data.url || [],
+    stream: data.stream || null,
+    converter: data.converter || null,
+    hosting: data.hosting || null
   };
 }
 
 export default {
-  parse,
-  resolveDownloadUrl,
-  download
+  download,
+  getSignFunction,
+  getChunkUrl
 };
