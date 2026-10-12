@@ -3,7 +3,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { parse, resolveDownloadUrl } from './aio.js';
+import { download } from './aio.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -35,7 +35,7 @@ function friendlyError(error) {
   if (/fetch failed|ENOTFOUND|ECONN/i.test(message)) {
     return 'Layanan extractor sedang tidak dapat dihubungi. Coba beberapa saat lagi.';
   }
-  if (/vidssave parse (?:error|failed)/i.test(message)) {
+  if (/(?:vidssave|savefrom) (?:parse (?:error|failed)|worker hub error)/i.test(message)) {
     return 'Tautan tidak dapat dianalisis. Pastikan konten bersifat publik lalu coba kembali.';
   }
   if (/vidssave (?:media\/download request|download task) failed/i.test(message)) {
@@ -44,7 +44,7 @@ function friendlyError(error) {
   if (/vidssave SSE (?:query failed|stream completed)/i.test(message)) {
     return 'Link unduhan belum tersedia. Silakan tekan unduh kembali.';
   }
-  return message.replace(/vidssave/gi, 'Layanan extractor');
+  return message.replace(/vidssave|savefrom/gi, 'Layanan extractor');
 }
 
 function rateLimited(ip) {
@@ -88,17 +88,62 @@ async function parseWithRetry(videoUrl) {
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await parse(normalizedUrl);
+      return await download(normalizedUrl);
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = /vidssave parse|analy[sz]e failed|fetch failed|ENOTFOUND|ECONN/i.test(message);
+      const retryable = /vidssave|savefrom|worker hub|analy[sz]e failed|fetch failed|ENOTFOUND|ECONN/i.test(message);
       if (!retryable || attempt === 2) throw error;
       await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
     }
   }
 
   throw lastError;
+}
+
+function platformFromUrl(videoUrl) {
+  try {
+    const hostname = new URL(videoUrl).hostname.toLowerCase();
+    if (hostname.includes('youtube') || hostname === 'youtu.be') return 'YouTube';
+    if (hostname.includes('tiktok')) return 'TikTok';
+    if (hostname.includes('instagram')) return 'Instagram';
+    if (hostname.includes('facebook') || hostname === 'fb.watch') return 'Facebook';
+  } catch {}
+  return 'Media';
+}
+
+function resourceCandidates(result) {
+  const values = [];
+  for (const value of [result?.url, result?.stream, result?.converter]) {
+    if (Array.isArray(value)) values.push(...value);
+    else if (value) values.push(value);
+  }
+
+  const seen = new Set();
+  return values.map((value, index) => {
+    const directUrl = typeof value === 'string'
+      ? value
+      : value?.url || value?.download_url || value?.download || value?.link || value?.src;
+    if (typeof directUrl !== 'string' || !/^https?:\/\//i.test(directUrl) || seen.has(directUrl)) return null;
+    seen.add(directUrl);
+
+    const format = String(typeof value === 'object' ? value.ext || value.format || value.type || '' : '')
+      .replace(/^\./, '') || (new URL(directUrl).pathname.match(/\.([a-z0-9]+)$/i)?.[1] || 'mp4');
+    const lowerFormat = format.toLowerCase();
+    const isAudio = ['mp3', 'm4a', 'aac', 'opus', 'wav', 'audio'].some(item => lowerFormat.includes(item));
+    const quality = typeof value === 'object'
+      ? value.quality || value.qualityLabel || value.name || value.label || (isAudio ? 'Audio' : 'Auto')
+      : (isAudio ? 'Audio' : `Format ${index + 1}`);
+
+    return {
+      resource_id: String(index + 1),
+      quality: String(quality),
+      format: format.toUpperCase(),
+      type: isAudio ? 'audio' : 'video',
+      size: typeof value === 'object' ? value.size || value.filesize || value.filesize_approx || null : null,
+      resource_content: directUrl
+    };
+  }).filter(Boolean);
 }
 
 async function readJson(req) {
@@ -139,9 +184,17 @@ function readToken(token) {
 async function analyze(req, res) {
   const { url } = await readJson(req);
   const result = await parseWithRetry(url);
+  const resources = resourceCandidates(result);
+  if (resources.length === 0) throw new Error('Tidak ada format unduhan yang dikembalikan oleh extractor.');
+  const meta = result.meta && typeof result.meta === 'object' ? result.meta : {};
   json(res, 200, {
-    ...result,
-    resources: result.resources.map(({ resource_content, ...resource }) => ({
+    status: true,
+    platform: platformFromUrl(url),
+    id: result.id || null,
+    title: meta.title || meta.name || result.title || 'Media tanpa judul',
+    thumbnail: result.thumb || meta.thumbnail || meta.thumb || '',
+    duration: meta.duration || result.duration || 0,
+    resources: resources.map(({ resource_content, ...resource }) => ({
       ...resource,
       token: createToken(resource_content)
     }))
@@ -150,9 +203,9 @@ async function analyze(req, res) {
 
 async function resolve(req, res) {
   const { token, outputFormat } = await readJson(req);
-  const resourceContent = readToken(token);
-  const result = await resolveDownloadUrl(resourceContent, { outputFormat });
-  json(res, 200, { status: true, url: result.direct_url || result.download_link });
+  const directUrl = readToken(token);
+  if (!/^https?:\/\//i.test(directUrl)) throw new Error('URL unduhan tidak valid');
+  json(res, 200, { status: true, url: directUrl });
 }
 
 async function serveStatic(pathname, res) {
