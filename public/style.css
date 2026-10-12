@@ -126,9 +126,24 @@ h1 em { display: inline-block; padding: 1px 16px 7px; font-family: "Arial Black"
 .steps h3 { font-family: "Arial Black", Arial, sans-serif; font-size: 1.3rem; margin: 44px 0 10px; text-transform: uppercase; }
 .steps p { color: var(--ink); font-family: "Courier New", monospace; font-size: .84rem; font-weight: 700; line-height: 1.55; max-width: 250px; }
 
-footer { min-height: 120px; border-top: 4px solid var(--ink); display: flex; align-items: center; justify-content: space-between; }
-footer span { font-family: "Arial Black", Arial, sans-serif; font-weight: 900; letter-spacing: -.05em; font-size: 1.2rem; text-transform: uppercase; }
-footer p { color: var(--ink); font-family: "Courier New", monospace; font-size: .72rem; font-weight: 700; }
+.site-footer { padding: 0 0 38px; }
+.footer-panel { overflow: hidden; color: var(--white); background: var(--ink); border: 4px solid var(--ink); box-shadow: 8px 8px 0 var(--orange); }
+.footer-top { display: grid; grid-template-columns: 1.35fr .7fr 1fr; gap: 48px; padding: 48px; }
+.footer-intro { max-width: 390px; }
+.footer-brand { width: fit-content; display: flex; align-items: center; gap: 12px; color: var(--white); text-decoration: none; font-family: "Arial Black", Arial, sans-serif; font-size: 1.55rem; font-weight: 900; letter-spacing: -.06em; text-transform: uppercase; }
+.footer-mark { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 42px; color: var(--ink); background: var(--acid); border: 3px solid var(--white); box-shadow: 4px 4px 0 var(--orange); font-size: 1.35rem; }
+.footer-intro p { max-width: 340px; margin: 22px 0 0; color: #deded8; font-family: "Courier New", monospace; font-size: .8rem; font-weight: 700; line-height: 1.65; }
+.footer-nav, .footer-support { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.footer-nav strong, .footer-support > strong { margin-bottom: 5px; color: var(--acid); font-family: "Courier New", monospace; font-size: .72rem; letter-spacing: .12em; }
+.footer-nav a { color: var(--white); font-family: "Courier New", monospace; font-size: .78rem; font-weight: 900; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.footer-nav a:hover { color: var(--yellow); }
+.footer-platforms { display: flex; flex-wrap: wrap; gap: 8px; }
+.footer-platforms span { padding: 8px 10px; color: var(--ink); background: var(--white); border: 2px solid var(--white); font-family: "Courier New", monospace; font-size: .68rem; font-weight: 900; text-transform: uppercase; }
+.footer-platforms span:nth-child(2) { background: #ff9ac1; }
+.footer-platforms span:nth-child(3) { background: var(--blue); }
+.footer-platforms span:nth-child(4) { background: var(--purple); }
+.footer-bottom { display: flex; justify-content: space-between; gap: 24px; padding: 17px 48px; color: var(--ink); background: var(--acid); border-top: 4px solid var(--white); }
+.footer-bottom p { margin: 0; font-family: "Courier New", monospace; font-size: .68rem; font-weight: 900; line-height: 1.45; }
 .toast { position: fixed; right: 22px; bottom: 22px; max-width: 370px; padding: 14px 17px; background: var(--ink); color: var(--white); border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--orange); font-family: "Courier New", monospace; font-size: .78rem; font-weight: 700; z-index: 10; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 [hidden] { display: none !important; }
@@ -167,8 +182,10 @@ footer p { color: var(--ink); font-family: "Courier New", monospace; font-size: 
   .steps { grid-template-columns: 1fr; gap: 22px; }
   .steps article { min-height: 220px; transform: none !important; }
   .steps h3 { margin-top: 30px; }
-  footer { display: block; padding: 30px 0; }
-  footer p + p { margin-top: 10px; }
+  .site-footer { padding: 0 0 30px; }
+  .footer-top { grid-template-columns: 1fr; gap: 32px; padding: 34px 28px; }
+  .footer-intro { max-width: none; }
+  .footer-bottom { flex-direction: column; padding: 17px 28px; gap: 8px; }
   .toast { right: 12px; bottom: 12px; max-width: calc(100% - 24px); }
 }
 
@@ -218,6 +235,12 @@ footer p { color: var(--ink); font-family: "Courier New", monospace; font-size: 
   .steps article { min-height: 190px; padding: 22px 18px; }
   .steps h3 { margin-top: 22px; }
   .ambient { opacity: .45; }
+  .site-footer { padding-bottom: 22px; }
+  .footer-panel { box-shadow: 5px 5px 0 var(--orange); }
+  .footer-top { gap: 28px; padding: 28px 20px; }
+  .footer-brand { font-size: 1.3rem; }
+  .footer-mark { width: 38px; height: 38px; flex-basis: 38px; }
+  .footer-bottom { padding: 16px 20px; }
 }
 
 @media (max-width: 340px) {
